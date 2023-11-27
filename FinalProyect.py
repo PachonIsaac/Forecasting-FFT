@@ -29,6 +29,10 @@ df = df[['Date','Value']]
 df['Date'] = pd.to_datetime(df['Date'],format = '%Y-%m-%d')
 df.head()
 
+#Suaviation exponential of the column Value
+df['Value'] = df['Value'].ewm(alpha=0.1 ,adjust=False).mean()
+
+
 #Creating time series
 #df['Date'] = df['Date'].asfreq('W')
 series = TimeSeries.from_dataframe(df,
