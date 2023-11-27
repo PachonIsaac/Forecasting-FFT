@@ -1,56 +1,60 @@
-#FINAL PROJECT - FORECASTING OF THE MAXIMUM TEMPERATURE IN PEREIRA,RISARALDA,COLOMBIA.
-# Authors: Isaac Pachón and Jense David Martinez.
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
+from matplotlib import pyplot as plt
+import numpy as np # linear algebra
+import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+import matplotlib as mlp
+# Input data files are available in the read-only "../input/" directory
+# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
+
+import os
+for dirname, _, filenames in os.walk('/kaggle/input'):
+    for filename in filenames:
+        print(os.path.join(dirname, filename))
+
+# You can write up to 20GB to the current directory (/kaggle/working/) that gets preserved as output when you create a version using "Save & Run All" 
+# You can also write temporary files to /kaggle/temp/, but they won't be saved outside of the current session
 from darts import TimeSeries
 from darts.models import FFT
-from sklearn.metrics import mean_absolute_error
+from darts.metrics import mae
+import warnings
+warnings.filterwarnings("ignore")
+import logging
+logging.disable(logging.CRITICAL)
 
-
-# Cargar datos desde el archivo CSV
+#Importing data
 df = pd.read_csv('data.csv')
-df.index = pd.to_datetime(df['Fecha'])
+df = df.groupby('Date').sum()
+df['Date'] = df.index
+df = df[['Date','Value']]
 
-#Aplicar la suavisación exponencial
-alpha = 0.1
-smoothed_series=df['Valor'].ewm(alpha=alpha).mean()
+df['Date'] = pd.to_datetime(df['Date'],format = '%Y-%m-%d')
+df.head()
 
+#Creating time series
+#df['Date'] = df['Date'].asfreq('W')
+series = TimeSeries.from_dataframe(df,
+                                   time_col = 'Date',  
+                                   value_cols = 'Value',
+                                   fill_missing_dates=True, freq='D')
 
-# Crear una serie temporal a partir de los datos
-series = TimeSeries.from_dataframe(df, value_cols=['Valor'], freq='D')
+series.head()
 
-# Aplicar la transformada rápida de Fourier (FFT)
-model = FFT(nr_freqs_to_keep=30)
+#data visualization
+train, val = series.split_before(0.9)
+train.plot(label="training")
+val.plot(label="validation")
+
+#prediction using FFT
+model = FFT(trend="poly")
+model.fit(train)
+pred_val = model.predict(len(val))
+print("MAE:", mae(pred_val, val))
+train.plot(label="train")
+val.plot(label="val")
+pred_val.plot(label="prediction")
+
+#Real life forecasting
 model.fit(series)
+pred_val = model.predict(len(val))
+pred_val.plot(label="forecast")
 
-# Pronóstico usando el modelo FFT
-forecast = model.predict(365*3,) # Pronóstico para el próximo año (365 días)
-
-# Convertir el pronóstico en una serie de tiempo
-forecast_series = TimeSeries.from_dataframe(pd.DataFrame({'Valor': forecast}), freq='D')
-
-
-#Calcular el MAE
-mae = mean_absolute_error(forecast_series, smoothed_series[-365*3:])
-print("MAE:", mae)
-
-
-
-# Visualizar el pronóstico
-smoothed_series.plot(label='Datos Observados')
-forecast.plot(label='Pronóstico FFT')
-plt.legend()
 plt.show()
-
-
-# # Obtener los coeficientes en el dominio de la frecuencia
-# trend_coefficients = fft.trend_coefficients
-
-# #Calcular las frecuencias asociadas
-# if trend_coefficients is None:
-#   print("Error: No se encontraron coeficientes de tendencia significativos.")
-# else:
-#   frequencies = np.fft.fftfreq(len(trend_coefficients), d=series.freq.delta)
-#   positive_frequencies = frequencies[frequencies > 0]
-#   print("Frecuencias dominantes: ",positive_frequencies)
