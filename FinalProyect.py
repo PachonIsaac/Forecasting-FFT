@@ -44,10 +44,6 @@ plt.legend()
 plt.show()
 
 
-
-
-
-
 # # Obtener los coeficientes en el dominio de la frecuencia
 # trend_coefficients = fft.trend_coefficients
 
