@@ -1,64 +1,55 @@
 from matplotlib import pyplot as plt
-import numpy as np # linear algebra
-import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
-import matplotlib as mlp
-# Input data files are available in the read-only "../input/" directory
-# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
+import pandas as pd
 
-import os
-for dirname, _, filenames in os.walk('/kaggle/input'):
-    for filename in filenames:
-        print(os.path.join(dirname, filename))
-
-# You can write up to 20GB to the current directory (/kaggle/working/) that gets preserved as output when you create a version using "Save & Run All" 
-# You can also write temporary files to /kaggle/temp/, but they won't be saved outside of the current session
 from darts import TimeSeries
 from darts.models import FFT
 from darts.metrics import mae
-import warnings
-warnings.filterwarnings("ignore")
-import logging
-logging.disable(logging.CRITICAL)
 
 #Importing data
+# Importando datos del archivo CSV 'data.csv'
 df = pd.read_csv('data.csv')
+# Agrupando los datos por la columna 'Date' y sumando los valores correspondientes
 df = df.groupby('Date').sum()
+# Estableciendo la columna 'Date' como el índice del DataFrame
 df['Date'] = df.index
+# Seleccionando las columnas 'Date' y 'Value' para el DataFrame
 df = df[['Date','Value']]
-
+# Convirtiendo la columna 'Date' a formato de fecha y hora utilizando el formato '%Y-%m-%d'
 df['Date'] = pd.to_datetime(df['Date'],format = '%Y-%m-%d')
-df.head()
 
-#Suaviation exponential of the column Value
+# Suavización exponencial de la columna 'Value'
 df['Value'] = df['Value'].ewm(alpha=0.1 ,adjust=False).mean()
 
 
-#Creating time series
-#df['Date'] = df['Date'].asfreq('W')
+# Creación de una serie temporal a partir del DataFrame
 series = TimeSeries.from_dataframe(df,
-                                   time_col = 'Date',  
-                                   value_cols = 'Value',
-                                   fill_missing_dates=True, freq='D')
+                                   time_col = 'Date',       # Columna de tiempo  
+                                   value_cols = 'Value',    # Columna de valor
+                                   freq='D')                # Frecuencia diaria
 
-series.head()
-
-#data visualization
+# Dividiendo la serie temporal en dos partes: entrenamiento (90%) y validación (10%)
 train, val = series.split_before(0.9)
-train.plot(label="training")
-val.plot(label="validation")
 
-#prediction using FFT
-model = FFT(trend="poly")
+# Creación de un modelo de pronóstico FFT
+model = FFT()
+# Ajuste del modelo FFT a la serie temporal de entrenamiento
 model.fit(train)
+# Predicción de los valores de la serie temporal de validación
 pred_val = model.predict(len(val))
+
+# Cálculo del error absoluto medio (MAE) entre los valores reales y los valores predichos
 print("MAE:", mae(pred_val, val))
+
+# Visualización de los valores reales, los valores predichos y la serie temporal de entrenamiento
 train.plot(label="train")
 val.plot(label="val")
 pred_val.plot(label="prediction")
 
-#Real life forecasting
+# Ajuste del modelo FFT a la serie temporal completa
 model.fit(series)
-pred_val = model.predict(len(val))
+# Predicción de los valores futuros de la serie temporal
+pred_val = model.predict(365*10)
+# Visualización de la predicción futura
 pred_val.plot(label="forecast")
 
 plt.show()
